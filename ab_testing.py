@@ -281,20 +281,3 @@ class ab_testing(Binomial,Gaussian):
 
     
 
-
-#v=Binomial(p1=0.3, delta=0.02, power=0.8 , alpha=0.05 , two_sided=False)
-#print(v.n)
-#print(v.alpha)
-#print(v.two_sided)
-#print(v.power)
-#print(v)
-
-#c=ab_testing(n=8394, p1=0.3, power=0.8 , alpha=0.05 , two_sided=False)
-
-
-
-#Obteniendo la deviación estandar
-
-print(Gaussian(n=14128, delta=0.02, alpha=0.05 ,power=0.8, two_sided=True).params)
-
-print(ab_testing(n=25583, sd=0.2, delta=0.005, alpha=0.05, two_sided=True, distribution='Normal'))
