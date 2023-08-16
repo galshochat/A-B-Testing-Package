@@ -1,4 +1,3 @@
-
 import warnings
 import numpy as np
 import pandas as pd
@@ -146,7 +145,7 @@ class Binomial():
     
     def Alpha(self)-> float:
         # method that returns the probability of type 1 error (p_value) of the test given other arguments
-        self.z_score_a=(np.sqrt(self.n * self.delta**2)-self.z_score_b*np.sqrt((self.p1*(1-self.p1)) + (self.p2 * (1-self.self.p2))))/np.sqrt((self.p1+self.p2)*(1-self.p1 + 1-self.p2)/2) 
+        self.z_score_a=(np.sqrt(self.n * self.delta**2)-self.z_score_b*np.sqrt((self.p1*(1-self.p1)) + (self.p2 * (1-self.p2))))/np.sqrt((self.p1+self.p2)*(1-self.p1 + 1-self.p2)/2) 
         alpha=self.alpha=(1-norm.cdf(self.z_score_a)) * (1 if self.two_sided==False else 2)
         return alpha
 
@@ -162,21 +161,26 @@ class Binomial():
 
 class ab_testing(Binomial,Gaussian):
 
-    def __init__(self, data=None, metric=None, distribution=None ,date_col=None, cluster_cols=None, n=None, p1=None, delta=None, alpha=None, power=None, sd=None ,two_sided=True):
+    def __init__(self, data=None, metric=None, distribution=None ,date_column=None, experiment_unit_column=None, n=None, p1=None, delta=None, alpha=None, power=None, sd=None ,two_sided=True, num_comparisons=1):
+        
         self.data=data
+        self.num_comparisons=num_comparisons
+        alpha=alpha/self.num_comparisons if alpha is not None else None
+        
         if distribution in ["Binomial", "Gaussian", "Normal"]:
             self.distribution=distribution
         else: 
             raise ValueError('Distribution must be "Binomial" , "Gaussian" or "Normal"')
         if data is not None:
+            
             self.metric=metric
-            self.date_col=date_col
-            self.cluster_cols=cluster_cols
+            self.date_column=date_column
+            self.experiment_unit_column=experiment_unit_column
             if distribution=='Binomial':
                 self.p1=self.data[self.metric].mean()
             else:
                 self.sd=np.std(self.data[self.metric].values, ddof=1)
-            
+                
             self.alpha=alpha
             self.power=power
             self.two_sided=two_sided
@@ -191,17 +195,16 @@ class ab_testing(Binomial,Gaussian):
         # method which returns the parameters and arguments of the ab-testing instance
          if self.data is None:
             self.params['distribution']=self.distribution
-            return pprint.pformat(width=20, object=self.params, sort_dicts=False)
+            if self.num_comparisons>2:
+                self.params['number of comparisons']=self.num_comparisons
+                self.params['alpha']=self.alpha*self.num_comparisons
+                self.params['correction']='Bonferroni correction to family wise alpha was applied for every pairwise comparison'
+            return pprint.pformat(width=100, object=self.params, sort_dicts=False)
          else:
-            self.params={}
-    
-    def clustered_experiment(self, iterations=100, effects):
-        data=self.data.copy()
-        test=data[self.cluster_cols].sample(frac=0.5, replace=False, random_state=1)
-        data['group']=np.where(data[self.cluster_cols].isin(test), 1,0)
-        
-
-       
+            self.params={'alpha':self.alpha*self.num_comparisons, 'power':self.power, 'two-sided experiment': self.two_sided}
+            return pprint.pformat(width=100, object=self.params, sort_dicts=False)
+         
+         
 
 # method which returns the Minimal Detectable Effect experiment time estimation for an array of effect values.
 
@@ -218,9 +221,9 @@ class ab_testing(Binomial,Gaussian):
         if self.data is not None:
 
             #calculates number of time units present in the dataset
-            self.length_input_data = self.data[self.date_col].nunique()
+            length_input_data = self.data[self.date_column].nunique()
             #calculates the floor of events per time unit
-            self.events_per_time_unit_and_variant=np.floor(len(self.data[(self.data)[self.metric].notnull()])/self.length_input_data/2)
+            self.events_per_time_unit_and_variant=np.floor(len(self.data[(self.data)[self.metric].notnull()])/length_input_data/(self.num_comparisons+1))
             #the metric of interest base value
             pre_experiment_value=self.data[self.metric].mean()
             
@@ -239,10 +242,10 @@ class ab_testing(Binomial,Gaussian):
                 
                 self.p1=self.p1 if self.p1 is not None else pre_experiment_value
                 self.p2=self.p1 + self.delta
-                Binomial.__init__(self, n=None , p1=self.p1 , delta=self.delta, alpha=self.alpha, power=self.power, two_sided=self.two_sided)
+                Binomial.__init__(self, n=None , p1=self.p1 , delta=self.delta, alpha=self.alpha/self.num_comparisons , power=self.power, two_sided=self.two_sided)
                 n=self.n
             else:
-                Gaussian.__init__(self, n=None , sd=self.sd , delta=self.delta, alpha=self.alpha, power=self.power, two_sided=self.two_sided)
+                Gaussian.__init__(self, n=None , sd=self.sd , delta=self.delta, alpha=self.alpha/self.num_comparisons, power=self.power, two_sided=self.two_sided)
                 n=self.n
             sizes.append(int(np.ceil(n)))
             days.append(int(np.ceil(n/self.events_per_time_unit_and_variant)))
@@ -270,7 +273,9 @@ class ab_testing(Binomial,Gaussian):
         ax.plot(results['length of experiment'].values, results['effect'].values, marker=marker, ls=ls, **plot_kwargs)
         if annot==True:
             for i in range(len(results)):
-                plt.annotate(xy=(results['length of experiment'].values[i]+results['length of experiment'].min(), results['effect'].values[i]), text=results['length of experiment'].values[i])
+                plt.annotate(xy=(results['length of experiment'].values[i]+np.min([25,results['length of experiment'].min()]), results['effect'].values[i]), text=results['length of experiment'].values[i])
+                
+        ax.set_xlim(-1*(results['length of experiment'].max()*1.05-results['length of experiment'].max()), results['length of experiment'].values[i]+results['length of experiment'].max()*1.05)
         fig=ax.figure
         if save_path is not None:
             fig.savefig(save_path)
@@ -278,6 +283,4 @@ class ab_testing(Binomial,Gaussian):
             plt.close()
             return fig
        
-
-    
 
