@@ -1,16 +1,16 @@
+from typing import List, Optional
 import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import norm
-import datetime
 from scipy import optimize
 import pprint
 
 
 class Gaussian():
     
-    def __init__(self, n=None, delta=None, alpha=None, power=None, sd=None,  two_sided=True):
+    def __init__(self, n:int=None, delta:float=None, alpha:float=None, power:float=None, sd:float=None,  two_sided:bool=True):
         # method that initializes the instance of the Normal class
         """ n - minimal sample size for one group
         delta - effect size 
@@ -85,7 +85,7 @@ class Gaussian():
 
 class Binomial(): 
 
-    def __init__(self, n=None, p1=None, delta=None, alpha=None, power=None, two_sided=True):
+    def __init__(self, n:int=None, p1:float=None, delta:float=None, alpha:float=None, power:float=None, two_sided:bool=True):
  
         # method that initializes the instance of the Binomial class
         """ n - minimal sample size for one group
@@ -161,7 +161,7 @@ class Binomial():
 
 class ab_testing(Binomial,Gaussian):
 
-    def __init__(self, data=None, metric=None, distribution=None ,date_column=None, experiment_unit_column=None, n=None, p1=None, delta=None, alpha=None, power=None, sd=None ,two_sided=True, num_comparisons=1):
+    def __init__(self, data:pd.DataFrame=None, metric:str=None, distribution:str=None ,date_column:str=None, experiment_unit_column:str=None, n:int=None, p1:float=None, delta:float=None, alpha:float=None, power:float=None, sd:float=None ,two_sided:bool=True, num_comparisons:int=1):
         
         self.data=data
         self.num_comparisons=num_comparisons
@@ -184,6 +184,7 @@ class ab_testing(Binomial,Gaussian):
             self.alpha=alpha
             self.power=power
             self.two_sided=two_sided
+            self.delta=delta
             
         else:
             if distribution=='Binomial':
@@ -206,14 +207,14 @@ class ab_testing(Binomial,Gaussian):
          
          
 
-# method which returns the Minimal Detectable Effect experiment time estimation for an array of effect values.
+    # method which returns the Minimal Detectable Effect experiment time estimation for an array of effect values.
 
-    def MDE(self, events_per_time_unit_and_variant=None ,minimal_effect=None, maximal_effect=None, effect_step=None, two_sided=True, plot=False, save_path=None, **plot_kwargs):
+    def MDE(self, events_per_time_unit_and_variant:int=None ,minimal_effect:float=None, maximum_effect:float=None, effect_step:float=None, two_sided:bool=True, plot:bool=False, save_path:bool=None, **plot_kwargs):
         # produces an array of delta values
-        if not all([minimal_effect,maximal_effect,effect_step]):
+        if not all([minimal_effect,maximum_effect,effect_step]):
             raise ValueError('The values of minimal_effect, maximal_effect, effect_step cannot be None')
         #array of effect size values
-        effect_magnitudes=np.arange(minimal_effect,maximal_effect + effect_step ,effect_step)
+        effect_magnitudes=np.arange(minimal_effect,maximum_effect + effect_step ,effect_step)
         #list of experiment days needed for corresponding effect
         days=[]
         sizes=[]
@@ -262,7 +263,7 @@ class ab_testing(Binomial,Gaussian):
             self.mde=self.Plot_MDE(save_path, results, **plot_kwargs)
             return self.mde
     
-    def Plot_MDE(self, save_path=None ,results=None, figsize=(10,5), title='MDE', marker='o', ls='-',annot=True, **plot_kwargs):
+    def Plot_MDE(self, save_path:bool=None ,results:pd.DataFrame=None, figsize:tuple=(10,5), title:str='MDE', marker:str='o', ls:str='-',annot:bool=True, **plot_kwargs):
 
         fig=plt.figure(figsize=figsize)
         ax=plt.axes()
@@ -282,5 +283,44 @@ class ab_testing(Binomial,Gaussian):
         else:
             plt.close()
             return fig
-       
+    
+    def clustered_power(self, cluster_col:str , num_variants:int=None , covariates:Optional[List[str]]=None, delta:float=None, iterations:int=200, verbose:bool=True):
+        import statsmodels.api as sm
+        
+        num_variants = num_variants if num_variants is not None else self.num_comparisons 
+        family = sm.families.Gaussian()
+        cov_struct=sm.cov_struct.Exchangeable()
+        if covariates:
+            cov_data = self.data[covariates].copy()
 
+        def allocate_treatment(data, cluster_col, num_variants):   
+            clusters=data[cluster_col].unique()
+            treatments=[np.random.choice(num_variants,1)[0] for i in clusters]
+            clusters=pd.DataFrame({'clusters':clusters, 'treatments':treatments})
+            clusters=pd.get_dummies(clusters, columns=['treatments'], drop_first=True)
+            data=data.merge(clusters, how='inner', left_on=cluster_col, right_on='clusters')
+            data=data.drop(['clusters'], axis=1)
+            return data
+        def add_effect(data, delta):
+            data[self.metric]=np.where(data.iloc[:,2]==1, data[self.metric]+delta, data[self.metric])
+            return data
+        num_significant=0
+        n=1
+        alpha=self.alpha*self.num_comparisons
+        delta=delta if delta is not None else self.delta
+        if delta is None:
+            raise ValueError('Delta must be specified when instantiating the class or when calling the method')
+        for i in range(iterations):
+            data=self.data[[cluster_col, self.metric]].copy()
+            num_variants=num_variants if num_variants is not None else self.num_comparisons+1
+            data=add_effect(allocate_treatment(data, cluster_col, num_variants), delta)
+            if covariates:
+                data = pd.concat([data,cov_data], axis=1)
+            model=sm.GEE.from_formula(f'{self.metric} ~ {" + ".join(data.iloc[:,2:].columns)}', data=data, groups=cluster_col , family=family, cov_struct=cov_struct)
+            result=model.fit()
+            num_significant+=result.pvalues[1]<alpha
+            if verbose:
+                print(f'Iteration {n}')
+            n+=1
+
+        print(f'The power of the test is {num_significant/iterations}')
