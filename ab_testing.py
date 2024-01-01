@@ -154,7 +154,7 @@ class Binomial():
         warnings.filterwarnings("ignore", category = RuntimeWarning)
         def func(delta):
             return (self.z_score_a * np.sqrt((2*self.p1+delta)*(1-self.p1 + 1-self.p1-delta)/2) + self.z_score_b*np.sqrt((self.p1*(1-self.p1)) + ((self.p1+delta) * (1-self.p1-delta))))**2/delta**2 - self.n
-        delta=round(optimize.bisect(func, a=0, b=1), 4)
+        delta=round(optimize.bisect(func, a=0, b=1-self.p1), 4)
         warnings.filterwarnings("always", category = RuntimeWarning)
         return delta
 
