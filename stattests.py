@@ -138,13 +138,16 @@ class StatTests:
     def extract_regression_results(
         self,
         reg_results: sm.regression.linear_model.OLSResults,
+        data: pd.DataFrame,
         metric: str,
         variant: str,
         param_index: int = 0,
     ) -> Dict:
 
         deg_f = reg_results.df_resid
-        control = reg_results.params[param_index]
+        data = data[data[self.variants] != 1].drop(columns=metric, inplace=True)
+        control = np.mean(reg_results.predict(data))
+
         ate = reg_results.params[1 + param_index]
         variation = control + ate
 
@@ -247,7 +250,7 @@ class StatTests:
         )
 
         p_value = z_test[1]
-        z_critical = norm.ppf(self.alpha / self.tails)
+        z_critical = norm.ppf(1 - self.alpha / self.tails)
 
         margin = abs(
             z_critical
@@ -256,6 +259,7 @@ class StatTests:
                 + control * (1 - control) / control_nobs
             )
         )
+
         conf_intervals = ate - margin, ate + margin
 
         yield {
@@ -290,10 +294,11 @@ class StatTests:
         print(regression_results.summary())
         for idx, variant in enumerate(self.variants):
             yield self.extract_regression_results(
-                regression_results, metric, variant, idx
+                regression_results, data, metric, variant, idx
             )
 
     def GEE(self, data: pd.DataFrame, metric: str):
+
         family = sm.families.Gaussian()
         cov_struct = sm.cov_struct.Exchangeable()
         data = self.encode_columns(data, cat_col=[self.treatment_col])
@@ -312,7 +317,7 @@ class StatTests:
         print(regression_results.summary())
         for idx, variant in enumerate(self.variants):
             yield self.extract_regression_results(
-                regression_results, metric, variant, idx
+                regression_results, data, metric, variant, idx
             )
 
     @validate_only_binomial
@@ -334,7 +339,7 @@ class StatTests:
         for idx, variant in enumerate(self.variants):
 
             results_dict = self.extract_regression_results(
-                regression_results, metric, variant, idx
+                regression_results, data, metric, variant, idx
             )
             results_dict = self.transform_log_odds(results_dict)
             print(regression_results.summary())
