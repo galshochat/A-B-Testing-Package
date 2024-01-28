@@ -1,6 +1,5 @@
 PARAMS_DICT = {
-    "method": ["t-test", "ols"],
+    "method": ["t-test", "ols", "logistic-regression", "z-test", "gee", "delta"],
     "alternative": ["two-sided", "greater", "less"],
-    "distribution": ["Gaussian", "Normal", "Binomial"],
     "correction": ["bonferroni", "fdr_bh"],
 }
