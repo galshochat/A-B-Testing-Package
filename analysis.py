@@ -5,6 +5,7 @@ from statsmodels.stats.multitest import multipletests
 from typing import List, Dict, Literal, Optional
 from stattests import StatTests
 from scipy.stats import norm, t
+from visualization import Visualization
 
 
 class Analysis:
@@ -41,6 +42,7 @@ class Analysis:
     def __init__(
         self,
         df: pd.DataFrame = None,
+        time_col=Optional[str],
         tests: List[Dict] = None,
         treatment_col: str = None,
         control_variant_name: str = "control",
@@ -51,6 +53,7 @@ class Analysis:
     ):
 
         self.data = df
+        self.time_col = time_col
         self.tests = tests
         self.treatment_col = treatment_col
         self.control_variant_name = control_variant_name
@@ -115,7 +118,58 @@ class Analysis:
 
         return results
 
-    def analysis(self):
+    def prepare_visualization_data(self, test):
+        """produces daily test data for visualization"""
+        self.data[self.time_col] = self.data[self.time_col].dt.floor("d")
+
+        daily_control_results = pd.DataFrame()
+        daily_versions_results = pd.DataFrame()
+
+        for i in self.data[self.time_col].unique():
+            daily_data = self.data[self.data[self.time_col] == i]
+            daily_experiment = StatTests(
+                data=daily_data,
+                **test,
+                treatment_col=self.treatment_col,
+                control_variant_name=self.control_variant_name,
+                alpha=self.alpha,
+                alternative=self.alternative,
+                tails=self.tails,
+            )
+            daily_experiment.result["date"] = i
+            daily_control_results = pd.concat(
+                [
+                    daily_control_results,
+                    daily_experiment.result[
+                        ["metric", "control name", "control", "date"]
+                    ].drop_duplicates(keep="first"),
+                ],
+                ignore_index=True,
+                axis=0,
+            )
+            daily_versions_results = pd.concat(
+                [
+                    daily_versions_results,
+                    daily_experiment.result[
+                        ["metric", "variant name", "variant", "date"]
+                    ],
+                ],
+                ignore_index=True,
+                axis=0,
+            )
+
+        daily_control_results = daily_control_results.rename(
+            columns={"control name": "variant name", "control": "variant"}
+        )
+
+        daily_results = pd.concat(
+            [daily_control_results, daily_versions_results], ignore_index=True, axis=0
+        )
+
+        return daily_results
+
+    def analysis(self, visualize=True):
+        """orchestrates the testing and multiple comparisons corrections"""
         for idx, test in enumerate(self.tests):
 
             experiment = StatTests(
@@ -127,6 +181,23 @@ class Analysis:
                 alternative=self.alternative,
                 tails=self.tails,
             )
+
+            if visualize:
+
+                metric_viz_stats = self.prepare_visualization_data(test)
+
+                plot = Visualization.lineplot(
+                    data=metric_viz_stats,
+                    x="date",
+                    y="variant",
+                    color="variant name",
+                    title=test["metric"],
+                    xlabel="date",
+                    ylabel="",
+                )
+                print(plot)
+                print(pd.DataFrame(experiment.result))
+
             self.results = pd.concat(
                 [self.results, experiment.result], ignore_index=True, axis=0
             )

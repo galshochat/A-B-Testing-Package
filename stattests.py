@@ -291,7 +291,7 @@ class StatTests:
             regression_results = smf.ols(
                 f"{metric} ~ {' + '.join(data.drop(metric, axis=1))}", data=data
             ).fit(disp=0)
-        print(regression_results.summary())
+
         for idx, variant in enumerate(self.variants):
             yield self.extract_regression_results(
                 regression_results, data, metric, variant, idx
@@ -314,7 +314,6 @@ class StatTests:
         else:
             raise ValueError("'cluster_cols' param should be defined when using GEE")
 
-        print(regression_results.summary())
         for idx, variant in enumerate(self.variants):
             yield self.extract_regression_results(
                 regression_results, data, metric, variant, idx
@@ -342,7 +341,6 @@ class StatTests:
                 regression_results, data, metric, variant, idx
             )
             results_dict = self.transform_log_odds(results_dict)
-            print(regression_results.summary())
 
             yield results_dict
 
