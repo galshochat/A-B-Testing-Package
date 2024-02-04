@@ -1,11 +1,11 @@
 import pandas as pd
 import numpy as np
-from config import PARAMS_DICT
+from ab_tests.config import PARAMS_DICT
 from statsmodels.stats.multitest import multipletests
 from typing import List, Dict, Literal, Optional
-from stattests import StatTests
+from ab_tests.stattests import StatTests
 from scipy.stats import norm, t
-from visualization import Visualization
+from ab_tests.visualization import Visualization
 
 
 class Analysis:
