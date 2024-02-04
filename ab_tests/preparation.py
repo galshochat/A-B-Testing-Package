@@ -341,7 +341,6 @@ class ab_testing(Binomial, Gaussian):
         minimal_effect: float = None,
         maximum_effect: float = None,
         effect_step: float = None,
-        two_sided: bool = True,
         plot: bool = False,
         save_path: bool = None,
         **plot_kwargs,
