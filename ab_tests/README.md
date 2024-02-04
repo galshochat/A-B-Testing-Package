@@ -12,7 +12,6 @@ Library to ease the planning and correct execution of online randomized trials i
 
 
 ### variance_reduction.py
-* CUPED - covariate columns creation by using the metric pre-experiment data
-* CUPAC - covariate column creation leveraging predictions by LightGBM gradient boosted model trained on pre-experiment data (predictors of the metric which are not     affected by the treatment in experiment period).
-
+* CUPED - covariate columns creation using the metric pre-experiment data
+* CUPAC - covariate column creation leveraging predictions by LightGBM gradient boosted model trained on pre-experiment data.
 
