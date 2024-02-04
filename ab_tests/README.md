@@ -7,7 +7,7 @@ Library to ease the planning and correct execution of online randomized trials i
 ### preparation.py
 
 * calculation of sample size / power / false positive rate /  effect / standard deviation / point estimate given other parameters. Follows power.t.test/power.prop.test logic in R. Estimated parameters are corrected in case of multiple comparisons (Bonferroni).
-* calculation of MDE as a function of experiment duration 
+* calculation of MDE as a function of experiment duration. Includes MDE plotting. 
 * clustered experiments power analysis simulation using GEE.
 
 
