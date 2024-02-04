@@ -50,6 +50,7 @@ class Analysis:
         alternative: Literal["two-sided", "greater", "less"] = "two-sided",
         correction: Optional[Literal["bonferroni", "fdr_bh"]] = None,
         early_stopping_proportion: Optional[float] = None,
+        visualize: bool = True,
     ):
 
         self.data = df
@@ -62,6 +63,7 @@ class Analysis:
         self.alternative = alternative
         self.tails = 2 if alternative == 2 else 1
         self.results = pd.DataFrame()
+        self.visualize_plots = visualize
 
         if early_stopping_proportion:
             self.alpha = self.early_stopping(early_stopping_proportion)
@@ -118,7 +120,7 @@ class Analysis:
 
         return results
 
-    def prepare_visualization_data(self, test):
+    def prepare_visualization_data(self, test: dict):
         """produces daily test data for visualization"""
         self.data[self.time_col] = self.data[self.time_col].dt.floor("d")
 
@@ -168,7 +170,7 @@ class Analysis:
 
         return daily_results
 
-    def analysis(self, visualize=True):
+    def analysis(self):
         """orchestrates the testing and multiple comparisons corrections"""
         for idx, test in enumerate(self.tests):
 
@@ -182,8 +184,27 @@ class Analysis:
                 tails=self.tails,
             )
 
-            if visualize:
+            experiment.result.set_index(
+                [[idx] * experiment.result.shape[0]], inplace=True
+            )
+            self.results = pd.concat([self.results, experiment.result], axis=0)
 
+        if self.correction:
+            self.results = self.apply_correction(self.results)
+
+        self.visualize()
+
+        return self
+
+    def visualize(self):
+        """orchestrates all operations relative to visualization"""
+        # columns to render in the results table
+        columns = list(
+            filter(lambda x: x not in ["metric", "deg_f"], self.results.columns)
+        )
+
+        for idx, test in enumerate(self.tests):
+            if self.visualize_plots:
                 metric_viz_stats = self.prepare_visualization_data(test)
 
                 plot = Visualization.lineplot(
@@ -196,13 +217,9 @@ class Analysis:
                     ylabel="",
                 )
                 print(plot)
-                print(pd.DataFrame(experiment.result))
 
-            self.results = pd.concat(
-                [self.results, experiment.result], ignore_index=True, axis=0
-            )
+            metric_results = self.results.loc[[idx]][columns]
 
-        if self.correction:
-            self.results = self.apply_correction(self.results)
+            Visualization.scorecard(metric_results, title=test["metric"])
 
         return self

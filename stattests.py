@@ -335,12 +335,13 @@ class StatTests:
             regression_results = smf.logit(
                 f"{metric} ~ {' + '.join(data.drop(metric, axis=1))}", data=data
             ).fit(disp=0)
+        print(regression_results.summary())
         for idx, variant in enumerate(self.variants):
 
             results_dict = self.extract_regression_results(
                 regression_results, data, metric, variant, idx
             )
-            results_dict = self.transform_log_odds(results_dict)
+            results_dict = self.transform_logit_results(results_dict)
 
             yield results_dict
 
@@ -437,23 +438,21 @@ class StatTests:
             "deg_f": None,
         }
 
-    def transform_log_odds(self, results_dict: Dict) -> Dict:
+    def transform_logit_results(self, results_dict: Dict) -> Dict:
         """transforms log odds to probabilities"""
+        print(results_dict)
 
-        for i in ["lower confidence boundary", "upper confidence boundary"]:
-            results_dict[i] = results_dict[i] + results_dict["variant"]
-
-        for i in [
-            "control",
-            "variant",
-            "lower confidence boundary",
-            "upper confidence boundary",
-        ]:
-            results_dict[i] = np.exp(results_dict[i]) / (1 + np.exp(results_dict[i]))
-
-        for i in ["lower confidence boundary", "upper confidence boundary"]:
-            results_dict[i] = results_dict[i] - results_dict["variant"]
-
+        for i in ["ate", "lower confidence boundary", "upper confidence boundary"]:
+            results_dict[i] = self.odds_to_prob(
+                results_dict[i]
+                + np.log(results_dict["control"] / (1 - results_dict["control"]))
+            )
+        results_dict["variant"] = results_dict["ate"]
         results_dict["ate"] = results_dict["variant"] - results_dict["control"]
+        for i in ["lower confidence boundary", "upper confidence boundary"]:
+            results_dict[i] = results_dict[i] - results_dict["control"]
 
         return results_dict
+
+    def odds_to_prob(self, x):
+        return np.exp(x) / (1 + np.exp(x))
