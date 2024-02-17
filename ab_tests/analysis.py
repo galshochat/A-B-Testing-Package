@@ -128,14 +128,14 @@ class Analysis:
                     st_error = (i[bound] - i["ate"]) / t.ppf(
                         self.alpha / self.tails, df=i["deg_f"]
                     )
-                    adjusted_alpha = self.alpha * i["p_value"] / (i["adjusted_pvalues"])
+                    adjusted_alpha = self.alpha * i["p_value"] / (i["adjusted pvalues"])
                     results.at[idx, bound] = (
                         i["ate"]
                         + t.ppf(adjusted_alpha / self.tails, df=i["deg_f"]) * st_error
                     )
                 else:
                     st_error = (i[bound] - i["ate"]) / norm.ppf(self.alpha / self.tails)
-                    adjusted_alpha = self.alpha * i["p_value"] / (i["adjusted_pvalues"])
+                    adjusted_alpha = self.alpha * i["p_value"] / (i["adjusted pvalues"])
                     results.at[idx, bound] = (
                         i["ate"] + norm.ppf(adjusted_alpha / self.tails) * st_error
                     )
