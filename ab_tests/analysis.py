@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from ab_tests.config import PARAMS_DICT
 from statsmodels.stats.multitest import multipletests
-from typing import List, Dict, Literal, Optional
+from typing import List, Dict, Literal, Optional, Union
 from ab_tests.stattests import StatTests
 from scipy.stats import norm, t
 from ab_tests.visualization import Visualization
@@ -42,16 +42,38 @@ class Analysis:
     def __init__(
         self,
         df: pd.DataFrame = None,
-        time_col=Optional[str],
-        tests: List[Dict] = None,
+        time_col: Optional[str] = None,
+        tests: List[Dict[str, Union[str, list]]] = None,
         treatment_col: str = None,
         control_variant_name: str = "control",
         alpha: float = 0.05,
         alternative: Literal["two-sided", "greater", "less"] = "two-sided",
-        correction: Optional[Literal["bonferroni", "fdr_bh"]] = None,
+        correction: Optional[str] = None,
         early_stopping_proportion: Optional[float] = None,
         visualize: bool = True,
     ):
+        """
+        Params:
+
+        - df: dataframe
+        - time_col: str - optional timestamps/dates column used in visualization
+        - tests: dictionary containing:
+            - metric: str - name of the target column
+            - method: str - statistical test to apply (one of those in config.py)
+            - cluster_cols- list of strings. column names to cluster by.
+            - covariates  - list of strings. additional confounders affecting the result.
+            - treatment_col -string. Name of the treatment variable (can contain strings)
+            - control_variant_name - string or number. Name of the control level in treatment
+              variable
+            - alpha: significance level
+            - alternative: one of "two-sided", "greater", "less"
+            - correction: string representing the correction method for multiple comparisons.
+              Full list in config.py
+            - early_stopping_proportion: between 0 and 1. Ratio of data seen to planned when
+              the experiment stopped or peeked. Based on
+              Lan-DeMets sequential boundaries based on approximation of O'Brian-Fleming GST func
+            - visualize: boolean. Whether do draw a lineplot of the experiment.
+        """
 
         self.data = df
         self.time_col = time_col
@@ -94,7 +116,7 @@ class Analysis:
         )
 
         results["Significant"] = adjusted[0]
-        results["adjusted_pvalues"] = adjusted[1]
+        results["adjusted pvalues"] = adjusted[1]
 
         return self.correct_confidence_intervals(results)
 
@@ -120,7 +142,7 @@ class Analysis:
 
         return results
 
-    def prepare_visualization_data(self, test: dict):
+    def prepare_viz_data(self, test: dict):
         """produces daily test data for visualization"""
         self.data[self.time_col] = self.data[self.time_col].dt.floor("d")
 
@@ -143,7 +165,13 @@ class Analysis:
                 [
                     daily_control_results,
                     daily_experiment.result[
-                        ["metric", "control name", "control", "date"]
+                        [
+                            "metric",
+                            "control name",
+                            "control",
+                            "control_intercept",
+                            "date",
+                        ]
                     ].drop_duplicates(keep="first"),
                 ],
                 ignore_index=True,
@@ -153,7 +181,13 @@ class Analysis:
                 [
                     daily_versions_results,
                     daily_experiment.result[
-                        ["metric", "variant name", "variant", "date"]
+                        [
+                            "metric",
+                            "variant name",
+                            "variant",
+                            "variant_controlled",
+                            "date",
+                        ]
                     ],
                 ],
                 ignore_index=True,
@@ -163,6 +197,10 @@ class Analysis:
         daily_control_results = daily_control_results.rename(
             columns={"control name": "variant name", "control": "variant"}
         )
+        if "control_intercept" in daily_control_results.columns:
+            daily_control_results = daily_control_results.rename(
+                columns={"control_intercept": "variant_controlled"}
+            )
 
         daily_results = pd.concat(
             [daily_control_results, daily_versions_results], ignore_index=True, axis=0
@@ -172,8 +210,12 @@ class Analysis:
 
     def analysis(self):
         """orchestrates the testing and multiple comparisons corrections"""
-        for idx, test in enumerate(self.tests):
 
+        self.results = (
+            pd.DataFrame()
+        )  # emptying the results (if the method called again the previous results will be deleted)
+
+        for idx, test in enumerate(self.tests):
             experiment = StatTests(
                 data=self.data,
                 **test,
@@ -183,7 +225,6 @@ class Analysis:
                 alternative=self.alternative,
                 tails=self.tails,
             )
-
             experiment.result.set_index(
                 [[idx] * experiment.result.shape[0]], inplace=True
             )
@@ -194,23 +235,30 @@ class Analysis:
 
         self.visualize()
 
-        return self
+        # return self
 
     def visualize(self):
         """orchestrates all operations relative to visualization"""
         # columns to render in the results table
         columns = list(
-            filter(lambda x: x not in ["metric", "deg_f"], self.results.columns)
+            filter(
+                lambda x: x
+                not in ["metric", "deg_f", "variant_controlled", "control_intercept"],
+                self.results.columns,
+            )
         )
 
         for idx, test in enumerate(self.tests):
             if self.visualize_plots:
-                metric_viz_stats = self.prepare_visualization_data(test)
+                assert (
+                    self.time_col is not None
+                ), "'time_col' must be passed for visualization"
+                metric_viz_stats = self.prepare_viz_data(test)
 
                 plot = Visualization.lineplot(
                     data=metric_viz_stats,
                     x="date",
-                    y="variant",
+                    y="variant_controlled" or "variant",
                     color="variant name",
                     title=test["metric"],
                     xlabel="date",

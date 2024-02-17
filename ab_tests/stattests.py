@@ -96,7 +96,13 @@ class StatTests:
         for idx, _ in enumerate(
             self.select_method_func(data=self.data, metric=self.metric)
         ):
-            df = pd.concat([df, pd.DataFrame(_, index=[idx])], axis=0)
+            added_df = pd.DataFrame(_, index=[idx])
+            # to create consistency in returned columns we add two missing in simple tests
+            if "control_intercept" not in added_df.columns:
+                added_df[["control_intercept", "variant_controlled"]] = added_df[
+                    ["control", "variant"]
+                ].copy()
+            df = pd.concat([df, added_df], axis=0)
         return df
 
     def select_method_func(self, **kwargs):
@@ -115,8 +121,8 @@ class StatTests:
     def encode_columns(self, data: pd.DataFrame, cat_col: List[str]) -> pd.DataFrame:
         """one hot encoded columns prepended to the dataset"""
         encoded = pd.get_dummies(
-            data[cat_col], columns=cat_col, drop_first=True, prefix="", prefix_sep=""
-        )
+            data[cat_col], columns=cat_col, drop_first=False, prefix="", prefix_sep=""
+        ).drop(columns=self.control_variant_name)
 
         data.drop(columns=self.treatment_col, inplace=True)
         data = pd.concat([encoded, data], axis=1)
@@ -145,11 +151,11 @@ class StatTests:
     ) -> Dict:
 
         deg_f = reg_results.df_resid
-        data = data[data[self.variants] != 1].drop(columns=metric, inplace=True)
-        control = np.mean(reg_results.predict(data))
-
+        simple_mean_control = data[data[self.variants].sum(axis=1) != 1][metric].mean()
+        simple_mean_variant = data[data[variant] == 1][metric].mean()
+        intercept = reg_results.params[0]  # np.mean(reg_results.predict(data))
         ate = reg_results.params[1 + param_index]
-        variation = control + ate
+        variation = intercept + ate
 
         if self.alternative == "two-sided":
             p_value = t.sf(abs(reg_results.tvalues[1 + param_index]), deg_f) * 2
@@ -175,13 +181,14 @@ class StatTests:
                     .iloc[1 + param_index]
                     .values[1],
                 )
-
         return {
             "metric": metric,
             "control name": self.control_variant_name,
             "variant name": variant,
-            "control": control,
-            "variant": variation,
+            "control": simple_mean_control,
+            "variant": simple_mean_variant,
+            "control_intercept": intercept,
+            "variant_controlled": variation,
             "ate": ate,
             "p_value": p_value,
             "lower confidence boundary": conf_intervals[0],
@@ -335,7 +342,7 @@ class StatTests:
             regression_results = smf.logit(
                 f"{metric} ~ {' + '.join(data.drop(metric, axis=1))}", data=data
             ).fit(disp=0)
-        print(regression_results.summary())
+
         for idx, variant in enumerate(self.variants):
 
             results_dict = self.extract_regression_results(
@@ -440,17 +447,23 @@ class StatTests:
 
     def transform_logit_results(self, results_dict: Dict) -> Dict:
         """transforms log odds to probabilities"""
-        print(results_dict)
-
+        results_dict["control_intercept"] = self.odds_to_prob(
+            results_dict["control_intercept"]
+        )
         for i in ["ate", "lower confidence boundary", "upper confidence boundary"]:
             results_dict[i] = self.odds_to_prob(
                 results_dict[i]
-                + np.log(results_dict["control"] / (1 - results_dict["control"]))
+                + np.log(
+                    results_dict["control_intercept"]
+                    / (1 - results_dict["control_intercept"])
+                )
             )
-        results_dict["variant"] = results_dict["ate"]
-        results_dict["ate"] = results_dict["variant"] - results_dict["control"]
+        results_dict["variant_controlled"] = results_dict["ate"]
+        results_dict["ate"] = (
+            results_dict["variant_controlled"] - results_dict["control_intercept"]
+        )
         for i in ["lower confidence boundary", "upper confidence boundary"]:
-            results_dict[i] = results_dict[i] - results_dict["control"]
+            results_dict[i] = results_dict[i] - results_dict["control_intercept"]
 
         return results_dict
 
