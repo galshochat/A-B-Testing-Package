@@ -13,4 +13,5 @@ PARAMS_DICT = {
         "fdr_tsbh",
         "fdr_tsbky",
     ],
+    "plotting_strategy": ["ground_truth", "controlled"],
 }

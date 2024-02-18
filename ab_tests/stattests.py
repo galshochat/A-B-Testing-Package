@@ -195,6 +195,7 @@ class StatTests:
             "upper confidence boundary": conf_intervals[1],
             "Significant": p_value < self.alpha,
             "deg_f": deg_f,
+            "regression_results": reg_results.summary(),
         }
 
     @validate_one_test_version

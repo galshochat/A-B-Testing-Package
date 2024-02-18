@@ -51,6 +51,7 @@ class Analysis:
         correction: Optional[str] = None,
         early_stopping_proportion: Optional[float] = None,
         visualize: bool = True,
+        plotting_strategy: Literal["ground_truth", "controlled"] = "ground_truth",
     ):
         """
         Params:
@@ -73,6 +74,11 @@ class Analysis:
               the experiment stopped or peeked. Based on
               Lan-DeMets sequential boundaries based on approximation of O'Brian-Fleming GST func
             - visualize: boolean. Whether do draw a lineplot of the experiment.
+            - plotting strategy: if visualize is True, selecting plotting strategy strategy will
+              result in:
+                - ground_truth: plot daily simple means for the groups
+                - controlled: plot daily estimations for the groups controlling for clusters
+                  and covariates (if applicable).
         """
 
         self.data = df
@@ -86,6 +92,7 @@ class Analysis:
         self.tails = 2 if alternative == 2 else 1
         self.results = pd.DataFrame()
         self.visualize_plots = visualize
+        self.plotting_strategy = plotting_strategy
 
         if early_stopping_proportion:
             self.alpha = self.early_stopping(early_stopping_proportion)
@@ -243,7 +250,13 @@ class Analysis:
         columns = list(
             filter(
                 lambda x: x
-                not in ["metric", "deg_f", "variant_controlled", "control_intercept"],
+                not in [
+                    "metric",
+                    "deg_f",
+                    "variant_controlled",
+                    "control_intercept",
+                    "regression_results",
+                ],
                 self.results.columns,
             )
         )
@@ -258,7 +271,9 @@ class Analysis:
                 plot = Visualization.lineplot(
                     data=metric_viz_stats,
                     x="date",
-                    y="variant_controlled" or "variant",
+                    y="variant"
+                    if self.plotting_strategy == "ground_truth"
+                    else "variant_controlled",
                     color="variant name",
                     title=test["metric"],
                     xlabel="date",
