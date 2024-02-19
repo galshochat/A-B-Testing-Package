@@ -7,7 +7,7 @@ import numpy as np
 class VarianceReduction:
     def __init__(
         self,
-        data=pd.DataFrame,
+        data: pd.DataFrame,
         time_col: str = None,
         exp_start_date: str = None,
         metric: str = None,
@@ -118,8 +118,6 @@ class VarianceReduction:
             np.cov(Y["post_cluster_mean"], Y["pre_cluster_mean"])
             / np.var(X_users_means["pre_cluster_mean"])
         )[0][1]
-        print(Theta)
-
         post_data = post_data.merge(
             Y[[self.user_col, "pre_cluster_mean"]], how="left", on=self.user_col
         )
