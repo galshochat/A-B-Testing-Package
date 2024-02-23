@@ -76,14 +76,15 @@ class VarianceReduction:
                 categorical_feature=self.cat_predictors,
             )
             pred_test = model.predict_proba(X_test[self.predictors])
-
         else:
             raise ValueError(
                 "The metric distribution should be one of 'Binomial','Gaussian','Normal'"
             )
 
         X_test[self.metric] = y_test
-        X_test[self.prefix + self.metric] = pred_test
+        X_test[self.prefix + self.metric] = (
+            pred_test[:, 1] if self.distribution == "Binomial" else pred_test
+        )
 
         return X_test
 
