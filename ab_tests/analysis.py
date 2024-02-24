@@ -63,7 +63,8 @@ class Analysis:
             - method: str - statistical test to apply (one of those in config.py)
             - cluster_cols- list of strings. column names to cluster by.
             - covariates  - list of strings. additional confounders affecting the result.
-            - treatment_col -string. Name of the treatment variable (can contain strings)
+            - treatment_col -string. Name of the treatment variable.
+                the variable  type can be string (without spaces or special characters) or integer.
             - control_variant_name - string or number. Name of the control level in treatment
               variable
             - alpha: significance level
@@ -128,7 +129,7 @@ class Analysis:
         return self.correct_confidence_intervals(results)
 
     def correct_confidence_intervals(self, results: pd.DataFrame) -> pd.DataFrame:
-
+        results.reset_index(inplace=True, drop=False)
         for idx, i in results.iterrows():
             for bound in ["lower confidence boundary", "upper confidence boundary"]:
                 if ~np.isnan(i["deg_f"]):
@@ -146,7 +147,6 @@ class Analysis:
                     results.at[idx, bound] = (
                         i["ate"] + norm.ppf(adjusted_alpha / self.tails) * st_error
                     )
-
         return results
 
     def prepare_viz_data(self, test: dict):
@@ -256,11 +256,13 @@ class Analysis:
                     "variant_controlled",
                     "control_intercept",
                     "regression_results",
+                    "index",
                 ],
                 self.results.columns,
             )
         )
-
+        if self.correction is not None:
+            self.results.set_index("index", inplace=True)
         for idx, test in enumerate(self.tests):
             if self.visualize_plots:
                 assert (
