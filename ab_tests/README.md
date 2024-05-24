@@ -1,6 +1,6 @@
 # A-B-Testing-Package
 
-Library to ease the planning and correct execution of online randomized trials in business environment. It´s primarily directed at data analysts with limited acquaintance with advanced statistics but also to data scientists and product managers. Some methods syntax follows model R´s logic as R statistical modelling might be easier to implement occasionally. The library also includes some more complex testing scenarios involving clustered design and variance reduction methods.
+Library to ease the planning and correct execution of online randomized trials in business environment. It´s primarily directed at data analysts with limited acquaintance with advanced statistics but also to data scientists and product managers. Some methods´ syntax follows R´s logic as R statistical modelling might be easier to implement occasionally. The library also includes some more complex testing scenarios involving clustered design, sequential design (alpha spending) and variance reduction methods.
 
 ## Standalone Modules:
 
