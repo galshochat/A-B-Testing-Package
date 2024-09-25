@@ -130,6 +130,8 @@ class Analysis:
 
     def correct_confidence_intervals(self, results: pd.DataFrame) -> pd.DataFrame:
         results.reset_index(inplace=True, drop=False)
+        if self.correction not in ["bonferroni", "holm-sidak", "hommel"]:
+            return results
         for idx, i in results.iterrows():
             for bound in ["lower confidence boundary", "upper confidence boundary"]:
                 if ~np.isnan(i["deg_f"]):

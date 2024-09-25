@@ -354,9 +354,7 @@ class ab_testing(Binomial, Gaussian):
                 "The values of minimal_effect, maximal_effect, effect_step cannot be None"
             )
         # array of effect size values
-        effect_magnitudes = np.arange(
-            minimal_effect, maximum_effect + effect_step, effect_step
-        )
+        effect_magnitudes = np.arange(minimal_effect, maximum_effect, effect_step)
         # list of experiment days needed for corresponding effect
         days = []
         sizes = []
